@@ -288,6 +288,79 @@ describe("ETHPool", function () {
     });
   });
 
+  describe("Get current reward", function () {
+    it("Should get the current reward", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+      const distributeAmount = ethers.utils.parseEther("50");
+
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+      await ethPoolContract.connect(userB).deposit({ value: depositAmount });
+      await ethPoolContract
+        .connect(teamMember)
+        .distribute({ value: distributeAmount });
+
+      const currentReward = await ethPoolContract
+        .connect(userA)
+        .getCurrentReward(userA.address);
+
+      expect(currentReward).to.be.equals(distributeAmount.div(2));
+    });
+
+    it("Should get 0 if there is no active stake", async function () {
+      const currentReward = await ethPoolContract
+        .connect(userA)
+        .getCurrentReward(userA.address);
+
+      expect(currentReward).to.be.equals(0);
+    });
+
+    it("Should get 0 if there is no current reward", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+      await ethPoolContract.connect(userB).deposit({ value: depositAmount });
+
+      const currentReward = await ethPoolContract
+        .connect(userA)
+        .getCurrentReward(userA.address);
+
+      expect(currentReward).to.be.equals(0);
+    });
+
+    it("Should get 0 if there is no active stake and distributionRate > 0", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+      const distributeAmount = ethers.utils.parseEther("50");
+
+      await ethPoolContract.connect(userB).deposit({ value: depositAmount });
+      await ethPoolContract
+        .connect(teamMember)
+        .distribute({ value: distributeAmount });
+
+      const currentReward = await ethPoolContract
+        .connect(userA)
+        .getCurrentReward(userA.address);
+
+      expect(currentReward).to.be.equals(0);
+    });
+
+    it("Should get 0 if there is no current reward and distributionRate > 0", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+      const distributeAmount = ethers.utils.parseEther("50");
+
+      await ethPoolContract.connect(userB).deposit({ value: depositAmount });
+      await ethPoolContract
+        .connect(teamMember)
+        .distribute({ value: distributeAmount });
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+
+      const currentReward = await ethPoolContract
+        .connect(userA)
+        .getCurrentReward(userA.address);
+
+      expect(currentReward).to.be.equals(0);
+    });
+  });
+
   describe("Scenarios", function () {
     it("A deposits 100, B deposits 300, T distributes 200, A withdraws 150, B withdraws 450", async function () {
       const depositAmountA = ethers.utils.parseEther("100");

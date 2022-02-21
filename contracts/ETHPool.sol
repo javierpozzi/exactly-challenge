@@ -33,8 +33,7 @@ contract ETHPool is AccessControl {
     function withdraw() external {
         uint256 deposited = activeStakes[msg.sender];
         require(deposited > 0, "No active stake to withdraw");
-        uint256 reward = (deposited *
-            (distributionRate - distributionRateSnapshots[msg.sender])) / 1e18;
+        uint256 reward = getCurrentReward(msg.sender);
         totalActiveStakes -= deposited;
         activeStakes[msg.sender] = 0;
         uint256 totalWithdrawn = deposited + reward;
@@ -53,5 +52,11 @@ contract ETHPool is AccessControl {
         distributionRateSnapshots[msg.sender] = distributionRate;
         totalActiveStakes += msg.value;
         emit Deposit(msg.sender, msg.value);
+    }
+
+    function getCurrentReward(address user) public view returns (uint256) {
+        return
+            (activeStakes[user] *
+                (distributionRate - distributionRateSnapshots[user])) / 1e18;
     }
 }
