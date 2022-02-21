@@ -26,7 +26,9 @@ cd exactly-challenge
 npm install
 ```
 
-Rename file `.env.example` to `.env` on the root of the project. There is no need to change any environment variable, unless you want to deploy the contract to a testnet.
+Rename file `.env.example` to `.env` on the root of the project.
+
+Set the `ROPSTEN_URL` to your provider, like [Alchemy](https://www.alchemy.com/).
 
 The value of the `ROPSTEN_CONTRACT_ADDRESS` variable is the address of a deployed ETHPool on the ropsten network ([Check the verified contract in Etherscan](https://ropsten.etherscan.io/address/0x6e9B6d2A90dFE12b9f650E8D5210115eE465b3f2#code)).
 
