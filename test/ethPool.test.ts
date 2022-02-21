@@ -100,6 +100,25 @@ describe("ETHPool", function () {
       expect(distributionRateSnapshotAfter).to.be.equal(distributionRate);
     });
 
+    it("Should increase contract balance", async function () {
+      const depositAmountA = ethers.utils.parseEther("100");
+      const depositAmountB = ethers.utils.parseEther("200");
+
+      await ethPoolContract.connect(userB).deposit({ value: depositAmountB });
+
+      const contractBalanceBefore = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+      await ethPoolContract.connect(userA).deposit({ value: depositAmountA });
+      const contractBalanceAfter = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
+      expect(contractBalanceAfter).to.be.equal(
+        contractBalanceBefore.add(depositAmountA)
+      );
+    });
+
     it("Should emit Deposit event", async function () {
       const depositAmount = ethers.utils.parseEther("100");
 
@@ -174,6 +193,29 @@ describe("ETHPool", function () {
           .mul(rateExponent)
           .div(totalActiveStakesAfterSecondDistribute)
           .add(distributionRateAfterFirstDistribute)
+      );
+    });
+
+    it("Should increase contract balance", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+      const distributeAmount = ethers.utils.parseEther("50");
+
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+
+      const contractBalanceBefore = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
+      await ethPoolContract
+        .connect(teamMember)
+        .distribute({ value: distributeAmount });
+
+      const contractBalanceAfter = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
+      expect(contractBalanceAfter).to.be.equal(
+        contractBalanceBefore.add(distributeAmount)
       );
     });
 
@@ -263,6 +305,31 @@ describe("ETHPool", function () {
 
       expect(balanceAfter.add(gasCost)).to.be.equal(
         balanceBefore.add(depositAmount).add(distributeAmount)
+      );
+    });
+
+    it("Should decrease contract balance", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+      const distributeAmount = ethers.utils.parseEther("50");
+
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+      await ethPoolContract.connect(userB).deposit({ value: depositAmount });
+      await ethPoolContract
+        .connect(teamMember)
+        .distribute({ value: distributeAmount });
+
+      const contractBalanceBefore = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
+      await ethPoolContract.connect(userA).withdraw();
+
+      const contractBalanceAfter = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
+      expect(contractBalanceAfter).to.be.equal(
+        contractBalanceBefore.sub(depositAmount).sub(distributeAmount.div(2))
       );
     });
 
@@ -387,12 +454,17 @@ describe("ETHPool", function () {
           ethPoolContract.connect(userB).withdraw()
         );
 
+      const contractBalance = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
       expect(balanceAAfter.add(gasCostA)).to.be.equal(
         balanceABefore.add(withdrawAmountA)
       );
       expect(balanceBAfter.add(gasCostB)).to.be.equal(
         balanceBBefore.add(withdrawAmountB)
       );
+      expect(contractBalance).to.be.equal(ethers.constants.Zero);
     });
 
     it("A deposits 200, B deposits 400, T distributes 100, T distributes 300, A withdraws 333.333, B withdraws 666.666", async function () {
@@ -424,6 +496,10 @@ describe("ETHPool", function () {
           ethPoolContract.connect(userB).withdraw()
         );
 
+      const contractBalance = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
       expect(balanceAAfter.add(gasCostA)).to.be.closeTo(
         balanceABefore.add(withdrawAmountA),
         1e10
@@ -432,6 +508,7 @@ describe("ETHPool", function () {
         balanceBBefore.add(withdrawAmountB),
         1e10
       );
+      expect(contractBalance).to.be.closeTo(ethers.constants.Zero, 1e5);
     });
 
     it("A deposits 200, B deposits 800, T distributes 200, A withdraws 240, T distributes 300, A deposits 100, B withdraws 1260, A withdraws 100", async function () {
@@ -474,6 +551,10 @@ describe("ETHPool", function () {
           ethPoolContract.connect(userA).withdraw()
         );
 
+      const contractBalance = await ethers.provider.getBalance(
+        ethPoolContract.address
+      );
+
       expect(balanceA1After.add(gasCostA1)).to.be.equal(
         balanceA1Before.add(withdrawAmountA1)
       );
@@ -485,6 +566,7 @@ describe("ETHPool", function () {
       expect(balanceA2After.add(gasCostA2)).to.be.equal(
         balanceA2Before.add(withdrawAmountA2)
       );
+      expect(contractBalance).to.be.equal(ethers.constants.Zero);
     });
   });
 });
