@@ -1,55 +1,77 @@
-# Smart Contract Challenge
+# Exactly Finance - Smart Contract Challenge
 
-## A) Challenge
+## Summary
 
-### 1) Setup a project and create a contract
+This is a solution to the [Exactly Finance Smart Contract Challenge](/CHALLENGE.md), using a scalable reward distribution system.
 
-#### Summary
+The ETHPool works in a pull based distribution for the rewards, where the team member just send the distribution value to the contract, and the users are the ones that have to pull their rewards. This avoids high computational costs and allows a highly scalable solution with O(1) time complexity.
 
-ETHPool provides a service where people can deposit ETH and they will receive weekly rewards. Users must be able to take out their deposits along with their portion of rewards at any time. New rewards are deposited manually into the pool by the ETHPool team each week using a contract function.
+This is achieved by calculating a distribution rate based on the distribution value and the users active stakes. This rate allows calculating the reward for each user, based on their active stakes and the moment they deposited, without the need to store a registry of distribution values. When making a deposit, the user stores a snapshot of the distribution rate, for calculating in future withdrawing.
 
-#### Requirements
+## Assumptions
 
-- Only the team can deposit rewards.
-- Deposited rewards go to the pool of users, not to individual users.
-- Users should be able to withdraw their deposits along with their share of rewards considering the time when they deposited.
+The following assumptions were made for this solution:
+ - The deployer of the contract is a team member and also an admin, who can grant the team member role to any other user.
+ - The team members are responsible to deposit the rewards weekly. This contract gives them the liberty to make the deposits on any timely basis. If needed, an implementation could be done storing the timestamp of the last distribution, and comparing the diff with the `block.timestamp` of a new distribution.
+ - Team members are allowed to make deposits.
+ - Users can't make two consecutive deposits without withdrawing first.
 
-Example:
+## Getting started
 
-> Let say we have user **A** and **B** and team **T**.
->
-> **A** deposits 100, and **B** deposits 300 for a total of 400 in the pool. Now **A** has 25% of the pool and **B** has 75%. When **T** deposits 200 rewards, **A** should be able to withdraw 150 and **B** 450.
->
-> What if the following happens? **A** deposits then **T** deposits then **B** deposits then **A** withdraws and finally **B** withdraws.
-> **A** should get their deposit + all the rewards.
-> **B** should only get their deposit because rewards were sent to the pool before they participated.
+To run the project, pull the repository and install its dependencies:
 
-#### Goal
+```bash
+git clone https://github.com/javierpozzi/exactly-challenge.git
+cd exactly-challenge
+npm install
+```
 
-Design and code a contract for ETHPool, take all the assumptions you need to move forward.
+Rename file `.env.example` to `.env` on the root of the project. There is no need to change any environment variable, unless you want to deploy the contract to a testnet.
 
-You can use any development tools you prefer: Hardhat, Truffle, Brownie, Solidity, Vyper.
+The value of the `ROPSTEN_CONTRACT_ADDRESS` variable is the address of a deployed ETHPool on the ropsten network ([Check the verified contract in Etherscan](https://ropsten.etherscan.io/address/0x6e9B6d2A90dFE12b9f650E8D5210115eE465b3f2#code)).
 
-Useful resources:
+Run the tests to verify that the installation was successful:
 
-- Solidity Docs: https://docs.soliditylang.org/en/v0.8.4
-- Educational Resource: https://github.com/austintgriffith/scaffold-eth
-- Project Starter: https://github.com/abarmat/solidity-starter
+```bash
+npm test
+```
 
-### 2) Write tests
+## Usage
 
-Make sure that all your code is tested properly
+You can check the total amount of ETH in the contract deployed on ropsten with:
 
-### 3) Deploy your contract
+```bash
+npx hardhat totalEth --network ropsten
+```
 
-Deploy the contract to any Ethereum testnet of your preference. Keep record of the deployed address.
+Also, you can launch a local simulator of the ETHPool:
 
-Bonus:
+```bash
+npx hardhat run scripts/simulator.ts
+```
 
-- Verify the contract in Etherscan
+The simulator will be executed as a CLI, allowing you to make the following actions:
 
-### 4) Interact with the contract
+- **Deposit**: Deposit ETH to the pool, creating an active stake for the selected user and setting a distribution rate snapshot for future withdrawing.
+- **Distribute**: Distribute a reward to the pool. Only team members are allowed to execute this action.
+- **Withdraw**: Withdraw the selected user's active stake plus the reward from the pool, and send the ETH to the user.
+- **User Status**: Get the current status of the selected user (balance, active stake and current reward).
+- **Contract Status**: Get the current status of the contract (balance, total active stakes and distribution rate).
 
-Create a script (or a Hardhat task) to query the total amount of ETH held in the contract.
+## Gas Report
 
-_You can use any library you prefer: Ethers.js, Web3.js, Web3.py, eth-brownie_
+If you want to check gas usage run:
+
+```bash
+npm run gas-report
+```
+
+## Credits
+
+This software uses the following open source projects:
+
+- [Solidity](https://github.com/ethereum/solidity/)
+- [Node.js](https://nodejs.org/)
+- [Hardhat](https://hardhat.org/)
+- [ethers.js](https://github.com/ethers-io/ethers.js/)
+- [OpenZeppelin Contracts](https://openzeppelin.com/contracts/)
