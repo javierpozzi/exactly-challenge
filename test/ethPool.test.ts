@@ -52,13 +52,47 @@ describe("ETHPool", function () {
   });
 
   describe("Deposit", function () {
-    it("Should set the active stake of the user by the amount sended", async function () {
+    it("Should add the active stake of the user by the amount sended", async function () {
       const depositAmount = ethers.utils.parseEther("100");
 
       await ethPoolContract.connect(userA).deposit({ value: depositAmount });
       const userStake = await ethPoolContract.activeStakes(userA.address);
 
       expect(userStake).to.be.equal(depositAmount);
+    });
+
+    it("Should make consecutive deposits", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+      const userStake = await ethPoolContract.activeStakes(userA.address);
+
+      expect(userStake).to.be.equal(depositAmount.mul(2));
+    });
+
+    it("Should make deposit after distribution without adding to the reward", async function () {
+      const depositAmount = ethers.utils.parseEther("100");
+      const distributeAmount = ethers.utils.parseEther("50");
+
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+      await ethPoolContract.connect(userB).deposit({ value: depositAmount });
+      await ethPoolContract
+        .connect(teamMember)
+        .distribute({ value: distributeAmount });
+
+      const currentRewardBefore = await ethPoolContract
+        .connect(userA)
+        .getCurrentReward(userA.address);
+
+      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
+
+      const currentRewardAfter = await ethPoolContract
+        .connect(userA)
+        .getCurrentReward(userA.address);
+
+      expect(currentRewardAfter).to.be.equal(currentRewardBefore);
+      expect(currentRewardAfter).to.be.equal(distributeAmount.div(2));
     });
 
     it("Should increase total active stakes by the amount sended", async function () {
@@ -76,7 +110,8 @@ describe("ETHPool", function () {
       );
     });
 
-    it("Should set distribution rate snapshot for this user based on current distribution rate", async function () {
+    it("Should add to discount reward based on distribution rate and the deposit amount", async function () {
+      const decimalFactor = BigNumber.from(10).pow(18);
       const depositAmountA = ethers.utils.parseEther("100");
       const distributeAmount = ethers.utils.parseEther("50");
       const depositAmountB = ethers.utils.parseEther("200");
@@ -86,18 +121,32 @@ describe("ETHPool", function () {
         .connect(teamMember)
         .distribute({ value: distributeAmount });
 
-      const distributionRateSnapshotBefore =
-        await ethPoolContract.distributionRateSnapshots(userB.address);
+      const discountRewardBefore = await ethPoolContract.discountRewards(
+        userB.address
+      );
 
       await ethPoolContract.connect(userB).deposit({ value: depositAmountB });
 
-      const distributionRateSnapshotAfter =
-        await ethPoolContract.distributionRateSnapshots(userB.address);
+      const discountRewardAfterFirstDeposit =
+        await ethPoolContract.discountRewards(userB.address);
+
+      await ethPoolContract.connect(userB).deposit({ value: depositAmountB });
+
+      const discountRewardAfterSecondDeposit =
+        await ethPoolContract.discountRewards(userB.address);
 
       const distributionRate = await ethPoolContract.distributionRate();
 
-      expect(distributionRateSnapshotBefore).to.be.equal(ethers.constants.Zero);
-      expect(distributionRateSnapshotAfter).to.be.equal(distributionRate);
+      expect(discountRewardBefore).to.be.equal(ethers.constants.Zero);
+      expect(discountRewardAfterFirstDeposit).to.be.equal(
+        distributionRate.mul(depositAmountB).div(decimalFactor)
+      );
+      expect(discountRewardAfterSecondDeposit).to.be.equal(
+        distributionRate
+          .mul(depositAmountB)
+          .div(decimalFactor)
+          .add(discountRewardAfterFirstDeposit)
+      );
     });
 
     it("Should increase contract balance", async function () {
@@ -133,15 +182,6 @@ describe("ETHPool", function () {
       await expect(
         ethPoolContract.connect(userA).deposit({ value: 0 })
       ).to.be.revertedWith("Deposit must be greater than 0");
-    });
-
-    it("Should revert if there is already an active stake", async function () {
-      const depositAmount = ethers.utils.parseEther("100");
-
-      await ethPoolContract.connect(userA).deposit({ value: depositAmount });
-      await expect(
-        ethPoolContract.connect(userA).deposit({ value: depositAmount })
-      ).to.be.revertedWith("You already have an active stake");
     });
   });
 

@@ -19,9 +19,9 @@ contract ETHPool is AccessControl {
     bytes32 public constant TEAM_ROLE = keccak256("TEAM_ROLE");
 
     uint256 public totalActiveStakes;
-    mapping(address => uint256) public activeStakes;
     uint256 public distributionRate;
-    mapping(address => uint256) public distributionRateSnapshots;
+    mapping(address => uint256) public activeStakes;
+    mapping(address => uint256) public discountRewards;
 
     event Deposit(address indexed user, uint256 amount);
     event Distribute(address indexed user, uint256 amount);
@@ -41,7 +41,7 @@ contract ETHPool is AccessControl {
      *
      * It calculates a distribution rate based on the distribution value and
      * the users active stakes. This rate allows calculating the reward for each user,
-     * based on their active stakes and when they deposited, without the need to store
+     * based on their active stakes and the discount reward, without the need to store
      * a registry of distribution values.
      *
      * The distribution rate uses a 1e18 exponent to avoid rounding errors.
@@ -63,32 +63,28 @@ contract ETHPool is AccessControl {
      * The user must have an active stake to withdraw successfully.
      */
     function withdraw() external {
-        uint256 deposited = activeStakes[msg.sender];
-        require(deposited > 0, "No active stake to withdraw");
+        uint256 activeStake = activeStakes[msg.sender];
+        require(activeStake > 0, "No active stake to withdraw");
         uint256 reward = getCurrentReward(msg.sender);
-        totalActiveStakes -= deposited;
+        totalActiveStakes -= activeStake;
+        discountRewards[msg.sender] = 0;
         activeStakes[msg.sender] = 0;
-        uint256 totalWithdrawn = deposited + reward;
+        uint256 totalWithdrawn = activeStake + reward;
         emit Withdraw(msg.sender, totalWithdrawn);
         (bool success, ) = msg.sender.call{value: totalWithdrawn}("");
         require(success, "Withdraw failed");
     }
 
     /**
-     * @dev Deposit ETH to the pool, creating an active stake and setting a
-     * distribution rate snapshot for future withdrawing.
+     * @dev Deposit ETH to the pool, setting the active stake, the
+     * the discount reward and the total active stakes.
      *
-     * The user must not have an active stake.
      * msg.value must be greater than 0.
      */
     function deposit() public payable {
         require(msg.value > 0, "Deposit must be greater than 0");
-        require(
-            activeStakes[msg.sender] == 0,
-            "You already have an active stake"
-        );
-        activeStakes[msg.sender] = msg.value;
-        distributionRateSnapshots[msg.sender] = distributionRate;
+        activeStakes[msg.sender] += msg.value;
+        discountRewards[msg.sender] += (distributionRate * msg.value) / 1e18;
         totalActiveStakes += msg.value;
         emit Deposit(msg.sender, msg.value);
     }
@@ -96,15 +92,14 @@ contract ETHPool is AccessControl {
     /**
      * @dev Returns the current reward value for the user.
      *
-     * This is calculated based on the active stake (deposit) of the user,
-     * multiply by the difference between the current distribution rate,
-     * and the distribution rate at the moment the deposit was made.
+     * This is calculated based on the distribution rate, multiplied by the
+     * active stake (deposits) of the user, minus the discount reward.
      *
      * @param user The user whose current reward is calculated.
      */
     function getCurrentReward(address user) public view returns (uint256) {
         return
-            (activeStakes[user] *
-                (distributionRate - distributionRateSnapshots[user])) / 1e18;
+            ((distributionRate * activeStakes[user]) / 1e18) -
+            discountRewards[user];
     }
 }
