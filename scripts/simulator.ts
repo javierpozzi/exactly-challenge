@@ -8,8 +8,7 @@ const ethPoolActions = [
   { name: "Deposit", value: deposit },
   { name: "Distribute", value: distribute },
   { name: "Withdraw", value: withdraw },
-  { name: "User Status", value: userStatus },
-  { name: "Contract Status", value: contractStatus },
+  { name: "Contract Status", value: printContractStatus },
   { name: "Exit", value: exit },
 ];
 
@@ -33,6 +32,7 @@ async function deposit(ethPoolContract: ETHPool) {
   try {
     await ethPoolContract.connect(user).deposit({ value: amount });
     console.log(`Deposited ${ethers.utils.formatEther(amount)} ETH`);
+    await printUsersStatus(ethPoolContract);
   } catch (error: any) {
     console.error(
       "Transaction reverted with the following error:\n",
@@ -42,11 +42,12 @@ async function deposit(ethPoolContract: ETHPool) {
 }
 
 async function distribute(ethPoolContract: ETHPool) {
-  const user = await chooseUser();
+  const [teamMember] = await ethers.getSigners();
   const amount = await askAmount();
   try {
-    await ethPoolContract.connect(user).distribute({ value: amount });
+    await ethPoolContract.connect(teamMember).distribute({ value: amount });
     console.log(`Distributed ${ethers.utils.formatEther(amount)} ETH`);
+    await printUsersStatus(ethPoolContract);
   } catch (error: any) {
     console.error(
       "Transaction reverted with the following error:\n",
@@ -63,6 +64,7 @@ async function withdraw(ethPoolContract: ETHPool) {
     const event = receipt.events!.find((e) => e.event === "Withdraw");
     const [, amount] = event!.args!;
     console.log(`Withdrawed ${ethers.utils.formatEther(amount)} ETH`);
+    await printUsersStatus(ethPoolContract);
   } catch (error: any) {
     console.error(
       "Transaction reverted with the following error:\n",
@@ -71,40 +73,57 @@ async function withdraw(ethPoolContract: ETHPool) {
   }
 }
 
-async function userStatus(ethPoolContract: ETHPool) {
-  const user = await chooseUser();
-  const balance = await user.getBalance();
-  const activeStake = await ethPoolContract
-    .connect(user)
-    .activeStakes(user.address);
-  const currentReward = await ethPoolContract
-    .connect(user)
-    .getCurrentReward(user.address);
-  console.log(
-    `Balance: ${ethers.utils.formatEther(
-      balance
-    )} ETH - Active stake: ${ethers.utils.formatEther(
-      activeStake
-    )} ETH - Current reward: ${ethers.utils.formatEther(currentReward)} ETH`
-  );
-}
-
-async function contractStatus(ethPoolContract: ETHPool) {
+async function printContractStatus(ethPoolContract: ETHPool) {
   const balance = await ethers.provider.getBalance(ethPoolContract.address);
   const totalActiveStakes = await ethPoolContract.totalActiveStakes();
   const distributionRate = await ethPoolContract.distributionRate();
-  console.log(
-    `Balance: ${ethers.utils.formatEther(
-      balance
-    )} ETH - Total active stakes: ${ethers.utils.formatEther(
-      totalActiveStakes
-    )} ETH - Distribution rate: ${distributionRate}`
-  );
+  console.table({
+    balance: ethers.utils.formatEther(balance) + " ETH",
+    totalActiveStakes: ethers.utils.formatEther(totalActiveStakes) + " ETH",
+    distributionRate: distributionRate.toString(),
+  });
 }
 
 function exit() {
   /* eslint no-process-exit: 0 */
   process.exit(0);
+}
+
+async function getUsers() {
+  const [teamMember, userA, userB] = await ethers.getSigners();
+
+  return [
+    { name: "User A", value: userA },
+    { name: "User B", value: userB },
+    { name: "Team Member", value: teamMember },
+  ];
+}
+
+async function printUsersStatus(ethPoolContract: ETHPool) {
+  const users = await getUsers();
+  const userStatus: any[] = [];
+
+  for (const user of users) {
+    const userSigner = user.value;
+    const balance = await userSigner.getBalance();
+    const activeStake = await ethPoolContract
+      .connect(userSigner)
+      .activeStakes(userSigner.address);
+    const currentReward = await ethPoolContract
+      .connect(userSigner)
+      .getCurrentReward(userSigner.address);
+    const discountReward = await ethPoolContract
+      .connect(userSigner)
+      .discountRewards(userSigner.address);
+    userStatus.push({
+      user: user.name,
+      balance: ethers.utils.formatEther(balance) + " ETH",
+      activeStake: ethers.utils.formatEther(activeStake) + " ETH",
+      currentReward: ethers.utils.formatEther(currentReward) + " ETH",
+      discountReward: ethers.utils.formatEther(discountReward) + " ETH",
+    });
+  }
+  console.table(userStatus);
 }
 
 async function chooseAction(): Promise<Function> {
@@ -119,17 +138,13 @@ async function chooseAction(): Promise<Function> {
 }
 
 async function chooseUser(): Promise<SignerWithAddress> {
-  const [teamMember, userA, userB] = await ethers.getSigners();
+  const users = await getUsers();
 
   const answer = await inquirer.prompt({
     name: "user",
     type: "list",
     message: "Choose a user",
-    choices: [
-      { name: "User A", value: userA },
-      { name: "User B", value: userB },
-      { name: "Team Member", value: teamMember },
-    ],
+    choices: users,
   });
 
   return answer.user;
